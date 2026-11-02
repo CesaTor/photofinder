@@ -1,4 +1,8 @@
 node_modules/
-dist/
 *.tgz
 .DS_Store
+
+# La build è committata di proposito: la libreria si installa da git
+# (`npm i github:CesaTor/photofinder`) senza dipendenze di sviluppo né
+# script di build. Dopo una modifica a src/ esegui `npm run build` e
+# committa dist/ insieme al sorgente.

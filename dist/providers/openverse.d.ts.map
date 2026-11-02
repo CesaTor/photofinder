@@ -1,0 +1,1 @@
+{"version":3,"file":"openverse.d.ts","sourceRoot":"","sources":["../../src/providers/openverse.ts"],"names":[],"mappings":"AACA,OAAO,KAAK,EAAe,QAAQ,EAAE,MAAM,aAAa,CAAC;AA2BzD,MAAM,WAAW,gBAAgB;IAC/B,yEAAyE;IACzE,QAAQ,CAAC,EAAE,MAAM,CAAC;CACnB;AAED;;;;GAIG;AACH,wBAAgB,SAAS,CAAC,EAAE,QAAa,EAAE,GAAE,gBAAqB,GAAG,QAAQ,CAoC5E"}

@@ -497,6 +497,8 @@ examples/             demo-server.ts (JSON + Server-Sent Events) + public/index.
 
 Node ≥ 22.18 esegue i file `.ts` direttamente, quindi test e demo non richiedono una build. Gli import interni usano l'estensione `.ts`, che `tsc` riscrive in `.js` durante la build (`rewriteRelativeImportExtensions`).
 
+**`dist/` è committata.** Chi installa da git (`npm i github:CesaTor/photofinder`, oppure `bun add github:CesaTor/photofinder`) riceve la build pronta: nessuna dipendenza di sviluppo, nessuno script di build, nessuna configurazione di script fidati. Dopo ogni modifica a `src/` esegui `npm run build` e committa `dist/` insieme al sorgente.
+
 ## Pubblicazione
 
 Prima di pubblicare, verifica che il pacchetto contenga solo il necessario:
