@@ -1,0 +1,43 @@
+{
+  "name": "photofinder",
+  "version": "0.1.0",
+  "description": "Cerca immagini riutilizzabili (CC0, pubblico dominio, CC BY, CC BY-SA) su Openverse, Wikimedia Commons, The Met, Cleveland e Smithsonian, con stringa di attribuzione pronta.",
+  "license": "MIT",
+  "author": "Cesare Torchia <cesare@torchia.eu>",
+  "keywords": [
+    "images",
+    "creative-commons",
+    "public-domain",
+    "openverse",
+    "wikimedia",
+    "attribution"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=20.3"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "node --test \"test/**/*.test.ts\"",
+    "demo": "node examples/demo-server.ts",
+    "prepublishOnly": "npm run typecheck && npm test && npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "typescript": "^7.0.2"
+  }
+}

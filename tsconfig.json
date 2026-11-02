@@ -1,0 +1,21 @@
+{
+  // Typecheck di tutto il progetto (libreria, test, esempi). La build usa tsconfig.build.json.
+  "compilerOptions": {
+    "target": "es2022",
+    "lib": ["es2023"],
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "types": ["node"],
+    "strict": true,
+    "noUncheckedIndexedAccess": false,
+    "exactOptionalPropertyTypes": false,
+    "verbatimModuleSyntax": true,
+    // Il sorgente importa file .ts, così Node lo esegue direttamente; tsc riscrive in .js nella build.
+    "allowImportingTsExtensions": true,
+    "rewriteRelativeImportExtensions": true,
+    "erasableSyntaxOnly": true,
+    "skipLibCheck": true,
+    "noEmit": true
+  },
+  "include": ["src", "test", "examples"]
+}

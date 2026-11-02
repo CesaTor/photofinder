@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Photofinder</title>
+  <style>
+    :root {
+      --bg: #f6f6f4; --card: #fff; --text: #1d1d1f; --muted: #6b6b70;
+      --border: #e2e2e0; --accent: #2f5bea; --ok: #1f8a4c; --warn: #b4540a; --skeleton: #ececea;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg: #121214; --card: #1c1c1f; --text: #ececee; --muted: #9a9aa0;
+              --border: #2c2c30; --accent: #7b9bff; --ok: #4ccb84; --warn: #f0a050; --skeleton: #242428; }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font: 15px/1.45 system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); }
+    main { max-width: 1200px; margin: 0 auto; padding: 32px 16px 64px; }
+    h1 { margin: 0 0 16px; font-size: 22px; }
+    form { display: flex; gap: 8px; }
+    input { flex: 1; min-width: 0; padding: 12px 14px; font: inherit; border: 1px solid var(--border);
+            border-radius: 10px; background: var(--card); color: var(--text); }
+    button { padding: 12px 20px; font: inherit; font-weight: 600; border: 0; border-radius: 10px;
+             background: var(--accent); color: #fff; cursor: pointer; }
+    button:disabled { opacity: .6; cursor: default; }
+
+    /* Barra di avanzamento sotto la ricerca */
+    .progress { height: 3px; margin-top: 10px; border-radius: 3px; background: var(--border); overflow: hidden; visibility: hidden; }
+    .progress.on { visibility: visible; }
+    .progress > div { height: 100%; width: 0; background: var(--accent); transition: width .3s ease; }
+
+    /* Stato della ricerca e chip per provider */
+    #status { margin: 12px 0 20px; font-size: 13px; color: var(--muted); min-height: 1.2em; }
+    #summary { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    #summary .err { color: var(--warn); }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 99px;
+            border: 1px solid var(--border); background: var(--card); font-size: 12px; }
+    .chip.ok { color: var(--ok); }
+    .chip.err { color: var(--warn); }
+    .chip.pending { color: var(--text); }
+    .spinner { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--border);
+               border-top-color: var(--accent); animation: spin .8s linear infinite; flex: none; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden;
+            display: flex; flex-direction: column; animation: appear .3s ease both; }
+    @keyframes appear { from { opacity: 0; transform: translateY(6px); } }
+    .card a.img { display: block; aspect-ratio: 4/3; background: var(--border); }
+    .card img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .body { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+    .title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .meta { display: flex; gap: 6px; flex-wrap: wrap; font-size: 12px; }
+    .tag { padding: 2px 8px; border-radius: 99px; border: 1px solid var(--border); color: var(--muted); }
+    .tag.free { color: var(--ok); border-color: currentColor; }
+    .attr { font-size: 12px; color: var(--muted); background: var(--bg); border-radius: 8px; padding: 8px; word-break: break-word; }
+    .actions { display: flex; gap: 12px; font-size: 12px; margin-top: auto; }
+    .actions a, .actions button { color: var(--accent); background: none; padding: 0; font-size: 12px; font-weight: 500; }
+
+    /* Segnaposto mostrati in fondo mentre altre fonti stanno ancora rispondendo */
+    .card.skeleton { animation: none; }
+    .skeleton .ph { background: var(--skeleton); border-radius: 6px; animation: pulse 1.4s ease-in-out infinite; }
+    .skeleton .ph.img { aspect-ratio: 4/3; border-radius: 0; }
+    .skeleton .ph.line { height: 12px; }
+    @keyframes pulse { 50% { opacity: .45; } }
+
+    #empty { color: var(--muted); text-align: center; padding: 32px 0; }
+    #more { display: block; margin: 24px auto 0; }
+    footer { margin-top: 40px; font-size: 12px; color: var(--muted); text-align: center; }
+    @media (prefers-reduced-motion: reduce) { .spinner, .skeleton .ph, .card { animation: none; } }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Photofinder</h1>
+  <form id="f">
+    <input id="q" type="search" placeholder="Cerca immagini libere, es. montagna, gatto, Roma…" autofocus>
+    <button id="go" type="submit">Cerca</button>
+  </form>
+  <div class="progress" id="progress"><div></div></div>
+  <div id="status" aria-live="polite">
+    <div id="summary"></div>
+    <div class="chips" id="chips"></div>
+  </div>
+  <div id="grid" class="grid"></div>
+  <div id="empty" hidden>Nessuna immagine trovata.</div>
+  <button id="more" hidden>Carica altri</button>
+  <!-- Richiesto dai Termini di servizio di Openverse (sezione 4) -->
+  <footer>Alcuni risultati sono ottenuti usando <a href="https://openverse.org" target="_blank" rel="noopener">Openverse</a>, che non approva né certifica questo servizio.</footer>
+</main>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  const SKELETONS = 4;
+  let query = '', page = 1, source = null;
+  // Stato della ricerca corrente: id → { name, state: 'pending'|'ok'|'err', count, error, pausedUntil }
+  let providers = new Map();
+  let pageCount = 0; // risultati della pagina corrente
+
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const time = (d) => new Date(d).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+
+  function card(r) {
+    const el = document.createElement('div');
+    el.className = 'card';
+    el.innerHTML = `
+      <a class="img" href="${esc(r.imageUrl)}" target="_blank" rel="noopener">
+        <img src="${esc(r.thumbnailUrl)}" alt="${esc(r.title)}" loading="lazy">
+      </a>
+      <div class="body">
+        <div class="title" title="${esc(r.title)}">${esc(r.title || 'Senza titolo')}</div>
+        <div class="meta">
+          <span class="tag">${esc(r.provider)}</span>
+          <span class="tag ${r.attributionRequired ? '' : 'free'}">${esc(r.license)}</span>
+        </div>
+        ${r.attribution
+          ? `<div class="attr">${esc(r.attribution)}</div>`
+          : `<div class="attr">Nessuna attribuzione richiesta</div>`}
+        <div class="actions">
+          <a href="${esc(r.imageUrl)}" target="_blank" rel="noopener">Immagine</a>
+          <a href="${esc(r.sourceUrl)}" target="_blank" rel="noopener">Pagina fonte</a>
+          ${r.attribution ? '<button type="button" class="copy">Copia attribuzione</button>' : ''}
+        </div>
+      </div>`;
+    el.querySelector('.copy')?.addEventListener('click', async (e) => {
+      await navigator.clipboard.writeText(r.attribution);
+      e.target.textContent = 'Copiata ✓';
+      setTimeout(() => (e.target.textContent = 'Copia attribuzione'), 1500);
+    });
+    return el;
+  }
+
+  function skeleton() {
+    const el = document.createElement('div');
+    el.className = 'card skeleton';
+    el.setAttribute('aria-hidden', 'true');
+    el.innerHTML = `<div class="ph img"></div><div class="body">
+      <div class="ph line" style="width:70%"></div><div class="ph line" style="width:40%"></div>
+      <div class="ph line" style="width:90%;height:40px"></div></div>`;
+    return el;
+  }
+
+  function setSkeletons(on) {
+    document.querySelectorAll('.card.skeleton').forEach((s) => s.remove());
+    if (on) for (let i = 0; i < SKELETONS; i++) $('grid').appendChild(skeleton());
+  }
+
+  /** Inserisce le card prima dei segnaposto, così i segnaposto restano in fondo. */
+  function addResults(results) {
+    const firstSkeleton = $('grid').querySelector('.card.skeleton');
+    for (const r of results) $('grid').insertBefore(card(r), firstSkeleton);
+  }
+
+  function render(done) {
+    const all = [...providers.values()];
+    const pending = all.filter((p) => p.state === 'pending');
+    const answered = all.length - pending.length;
+    const total = $('grid').querySelectorAll('.card:not(.skeleton)').length;
+
+    $('progress').classList.toggle('on', !done);
+    $('progress').firstElementChild.style.width = all.length ? `${Math.max(8, (answered / all.length) * 100)}%` : '8%';
+
+    let summary;
+    if (!done) {
+      const waiting = pending.map((p) => p.name).join(', ');
+      summary = total
+        ? `<span class="spinner"></span><span><b>${total}</b> immagini pronte, puoi già sceglierle · in attesa di ${esc(waiting)}…</span>`
+        : `<span class="spinner"></span><span>Ricerca in corso su ${all.length} fonti… in attesa di ${esc(waiting)}</span>`;
+    } else {
+      const failed = all.filter((p) => p.state === 'err').length;
+      summary = `<span><b>${total}</b> immagini · ricerca completata${failed ? ` · <span class="err">${failed} ${failed === 1 ? 'fonte non disponibile' : 'fonti non disponibili'}</span>` : ''}</span>`;
+    }
+    $('summary').innerHTML = summary;
+
+    $('chips').innerHTML = all.map((p) => {
+      if (p.state === 'pending') return `<span class="chip pending"><span class="spinner"></span>${esc(p.name)}</span>`;
+      if (p.state === 'ok') return `<span class="chip ok">✓ ${esc(p.name)} · ${p.count}</span>`;
+      const detail = p.pausedUntil ? `${p.error} — riprovo dalle ${time(p.pausedUntil)}` : p.error;
+      return `<span class="chip err" title="${esc(detail)}">⚠ ${esc(p.name)}</span>`;
+    }).join('');
+
+    $('empty').hidden = !(done && total === 0);
+  }
+
+  function run(reset) {
+    source?.close(); // una nuova ricerca annulla quella in corso (il server interrompe le richieste)
+    if (reset) { page = 1; $('grid').innerHTML = ''; }
+    pageCount = 0;
+    providers = new Map();
+    $('more').hidden = true;
+    setSkeletons(true);
+    render(false);
+
+    const es = new EventSource(`/api/search/stream?q=${encodeURIComponent(query)}&page=${page}`);
+    source = es;
+
+    es.addEventListener('start', (e) => {
+      const data = JSON.parse(e.data);
+      for (const p of data.providers) providers.set(p.id, { name: p.name, state: 'pending' });
+      render(false);
+    });
+
+    es.addEventListener('provider', (e) => {
+      const ev = JSON.parse(e.data);
+      const p = providers.get(ev.provider) ?? { name: ev.name };
+      Object.assign(p, ev.status.ok
+        ? { state: 'ok', count: ev.status.count }
+        : { state: 'err', error: ev.status.error, pausedUntil: ev.status.pausedUntil });
+      providers.set(ev.provider, p);
+      addResults(ev.results);
+      pageCount += ev.results.length;
+      render(false);
+    });
+
+    es.addEventListener('done', () => {
+      es.close();
+      setSkeletons(false);
+      render(true);
+      $('more').hidden = pageCount === 0;
+    });
+
+    const fail = (msg) => {
+      es.close();
+      setSkeletons(false);
+      render(true);
+      $('summary').innerHTML = `<span class="err">Errore: ${esc(msg)}</span>`;
+    };
+    es.addEventListener('failure', (e) => fail(JSON.parse(e.data).error));
+    // Errore di connessione: EventSource riproverebbe da solo, ma per una ricerca non ha senso.
+    es.addEventListener('error', () => { if (es.readyState !== EventSource.CLOSED) fail('connessione interrotta'); });
+  }
+
+  $('f').addEventListener('submit', (e) => {
+    e.preventDefault();
+    query = $('q').value.trim();
+    if (query) run(true);
+  });
+  $('more').addEventListener('click', () => { page++; run(false); });
+</script>
+</body>
+</html>
