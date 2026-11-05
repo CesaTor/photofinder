@@ -13,6 +13,8 @@ export { cleveland } from './providers/cleveland.ts';
 export type { ClevelandOptions } from './providers/cleveland.ts';
 export { smithsonian } from './providers/smithsonian.ts';
 export type { SmithsonianOptions } from './providers/smithsonian.ts';
+export { pixabay } from './providers/pixabay.ts';
+export type { PixabayOptions } from './providers/pixabay.ts';
 
 export { buildAttribution, stripHtml } from './attribution.ts';
 export type { AttributionParts } from './attribution.ts';

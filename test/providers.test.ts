@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { createFetchJson } from '../src/http.ts';
-import { artic, cleveland, isReusableWikimediaLicense, met, openverse, smithsonian, wikimedia } from '../src/index.ts';
+import { artic, cleveland, isReusableWikimediaLicense, met, openverse, pixabay, smithsonian, wikimedia } from '../src/index.ts';
 import type { Locale, ProviderContext } from '../src/index.ts';
 import {
   articFixture,
@@ -11,6 +11,7 @@ import {
   metSearchFixture,
   mockFetch,
   openverseFixture,
+  pixabayFixture,
   smithsonianFixture,
   wikimediaFixture,
   type Route,
@@ -177,6 +178,81 @@ describe('cleveland', () => {
     assert.match(results[0].imageUrl, /_print\.jpg$/);
     assert.match(results[0].thumbnailUrl, /_web\.jpg$/);
     assert.equal(results[0].license, 'CC0');
+  });
+});
+
+describe('pixabay', () => {
+  it('richiede la chiave API', () => {
+    assert.throws(() => pixabay({ apiKey: '' }), /apiKey/);
+  });
+
+  it('invia chiave, lingua, filtri e paginazione', async () => {
+    const { context, calls } = ctx([{ match: 'pixabay.com/api', body: pixabayFixture }], { page: 2 });
+    await pixabay({ apiKey: 'SEGRETA', pageSize: 30 }).search('tuscany', context);
+
+    const url = new URL(calls[0].url);
+    assert.equal(url.searchParams.get('key'), 'SEGRETA');
+    assert.equal(url.searchParams.get('q'), 'tuscany');
+    assert.equal(url.searchParams.get('lang'), 'it');
+    assert.equal(url.searchParams.get('image_type'), 'photo');
+    assert.equal(url.searchParams.get('safesearch'), 'true');
+    assert.equal(url.searchParams.get('page'), '2');
+    assert.equal(url.searchParams.get('per_page'), '30');
+  });
+
+  it('mappa i risultati e usa il piano gratuito (1280px) come immagine piena', async () => {
+    const { context } = ctx([{ match: 'pixabay.com/api', body: pixabayFixture }]);
+    const results = await pixabay({ apiKey: 'k' }).search('tuscany', context);
+
+    assert.deepEqual(results.map((r) => r.id), ['pixabay:8345688', 'pixabay:42', 'pixabay:7']);
+    const [first, fullAccess] = results;
+
+    assert.equal(first.title, 'florence', 'usa il primo tag come titolo');
+    assert.equal(first.creator, 'Elisabetta_Miele');
+    assert.equal(first.imageUrl, 'https://pixabay.com/get/abc_1280.jpg');
+    assert.equal(first.thumbnailUrl, 'https://pixabay.com/get/abc_340.jpg');
+    assert.equal(first.sourceUrl, 'https://pixabay.com/photos/florence-8345688/');
+    assert.equal(first.license, 'Pixabay Content License');
+
+    assert.equal(fullAccess.imageUrl, 'https://pixabay.com/get/def_4000.jpg', 'con accesso completo usa l\'originale');
+    assert.equal(fullAccess.attributionRequired, false);
+    assert.equal(
+      fullAccess.attribution,
+      '"cartina" di MarioRossi, Pixabay Content License (https://pixabay.com/service/license-summary/), tramite Pixabay (https://pixabay.com/photos/map-42/)',
+      'la licenza non obbliga, ma l\'API chiede di indicare la fonte'
+    );
+
+    assert.equal(results[2].title, '');
+    assert.equal(results[2].creator, null);
+    assert.equal(results[2].thumbnailUrl, 'https://pixabay.com/get/ghi_340.jpg');
+  });
+
+  it('limita per_page tra 3 e 200 e la query a 100 caratteri', async () => {
+    const { context, calls } = ctx([{ match: 'pixabay.com/api', body: pixabayFixture }]);
+    await pixabay({ apiKey: 'k', pageSize: 1 }).search('x'.repeat(150), context);
+    await pixabay({ apiKey: 'k', pageSize: 1000 }).search('x', context);
+
+    assert.equal(new URL(calls[0].url).searchParams.get('per_page'), '3');
+    assert.equal(new URL(calls[0].url).searchParams.get('q'), 'x'.repeat(100));
+    assert.equal(new URL(calls[1].url).searchParams.get('per_page'), '200');
+  });
+
+  it('permette di disattivare il filtro per contenuti per tutti', async () => {
+    const { context, calls } = ctx([{ match: 'pixabay.com/api', body: pixabayFixture }]);
+    await pixabay({ apiKey: 'k', safeSearch: false, imageType: 'illustration' }).search('gatto', context);
+
+    const url = new URL(calls[0].url);
+    assert.equal(url.searchParams.get('safesearch'), 'false');
+    assert.equal(url.searchParams.get('image_type'), 'illustration');
+  });
+
+  it('non espone la chiave API negli errori', async () => {
+    const { context } = ctx([{ match: 'pixabay.com/api', status: 400 }]);
+    await assert.rejects(pixabay({ apiKey: 'SEGRETA' }).search('x', context), (err: Error & { url: string }) => {
+      assert.ok(!err.url.includes('SEGRETA'));
+      assert.match(err.url, /key=\*\*\*/);
+      return true;
+    });
   });
 });
 

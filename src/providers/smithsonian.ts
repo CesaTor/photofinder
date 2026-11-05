@@ -30,7 +30,7 @@ const CREATOR_LABELS = new Set(['Artist', 'Creator', 'Maker', 'Photographer', 'A
 const LUCENE_SPECIAL = /[+\-&|!(){}[\]^"~*?:\\/]/g;
 
 export interface SmithsonianOptions {
-  /** Chiave gratuita di [api.data.gov](https://api.data.gov/signup/). Obbligatoria. */
+  /** Chiave gratuita delle [EDAN Open Access API](https://edan.si.edu/openaccess/apidocs/) (la stessa di api.data.gov). Obbligatoria. */
   apiKey: string;
   /** Risultati per pagina. Default: `20`. */
   pageSize?: number;
@@ -39,11 +39,12 @@ export interface SmithsonianOptions {
 }
 
 /**
- * [Smithsonian Open Access](https://www.si.edu/openaccess): milioni di immagini
- * dai musei e archivi Smithsonian. Restituisce solo i media marcati CC0.
+ * [Smithsonian Open Access](https://edan.si.edu/openaccess/apidocs/): milioni di
+ * immagini dai musei e archivi Smithsonian, tramite le EDAN Open Access API.
+ * Restituisce solo i media marcati CC0.
  *
- * Richiede una chiave gratuita di api.data.gov (limite predefinito: 1000
- * richieste all'ora per chiave, condiviso tra tutte le API di api.data.gov).
+ * Richiede una chiave gratuita (limite predefinito: 1000 richieste all'ora per
+ * chiave, condiviso tra tutte le API di api.data.gov).
  */
 export function smithsonian({ apiKey, pageSize = 20, thumbSize = 400 }: SmithsonianOptions): Provider {
   if (!apiKey) throw new TypeError('smithsonian(): `apiKey` è obbligatoria (registrati su https://api.data.gov/signup/)');

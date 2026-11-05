@@ -1,7 +1,7 @@
 {
   "name": "photofinder",
   "version": "0.1.0",
-  "description": "Cerca immagini riutilizzabili (CC0, pubblico dominio, CC BY, CC BY-SA) su Openverse, Wikimedia Commons, The Met, Cleveland e Smithsonian, con stringa di attribuzione pronta.",
+  "description": "Cerca immagini riutilizzabili (CC0, pubblico dominio, CC BY, CC BY-SA e Pixabay Content License) su Openverse, Wikimedia Commons, The Met, Cleveland, Smithsonian e Pixabay, con stringa di attribuzione pronta.",
   "license": "MIT",
   "author": "Cesare Torchia <cesare@torchia.eu>",
   "keywords": [
@@ -10,6 +10,7 @@
     "public-domain",
     "openverse",
     "wikimedia",
+    "pixabay",
     "attribution"
   ],
   "type": "module",

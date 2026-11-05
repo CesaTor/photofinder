@@ -145,6 +145,44 @@ export const clevelandFixture = {
   ],
 };
 
+export const pixabayFixture = {
+  total: 1000,
+  totalHits: 500,
+  hits: [
+    {
+      id: 8345688,
+      pageURL: 'https://pixabay.com/photos/florence-8345688/',
+      type: 'photo',
+      tags: 'florence, tuscany, italy',
+      previewURL: 'https://cdn.pixabay.com/photo/2023/10/27/15/51/italy-8345688_150.jpg',
+      webformatURL: 'https://pixabay.com/get/abc_640.jpg',
+      largeImageURL: 'https://pixabay.com/get/abc_1280.jpg',
+      user: 'Elisabetta_Miele',
+    },
+    {
+      id: 42,
+      pageURL: 'https://pixabay.com/photos/map-42/',
+      type: 'photo',
+      tags: 'cartina, mappa',
+      previewURL: 'https://cdn.pixabay.com/photo/42_150.jpg',
+      webformatURL: 'https://pixabay.com/get/def_640.jpg',
+      largeImageURL: 'https://pixabay.com/get/def_1280.jpg',
+      // Presente solo con l'accesso completo all'API.
+      imageURL: 'https://pixabay.com/get/def_4000.jpg',
+      user: 'MarioRossi',
+    },
+    {
+      id: 7,
+      pageURL: 'https://pixabay.com/photos/no-user-7/',
+      type: 'photo',
+      webformatURL: 'https://pixabay.com/get/ghi_640.jpg',
+      user: '',
+    },
+    // Senza URL utilizzabili: va scartata.
+    { id: 8, pageURL: 'https://pixabay.com/photos/broken-8/', type: 'photo' },
+  ],
+};
+
 export const smithsonianFixture = {
   status: 200,
   response: {

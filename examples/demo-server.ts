@@ -1,15 +1,24 @@
 // App di prova: barra di ricerca + griglia di risultati.
-// Avvio: `npm run demo`. Variabili d'ambiente opzionali:
+// Avvio: `npm run demo`. Le variabili si possono mettere in `.env` (vedi `.env.example`):
 //   PORT=xxxx                 porta (default 3000)
 //   PHOTOFINDER_CONTACT=...   contatto per lo User-Agent (consigliato da Wikimedia e AIC)
-//   SMITHSONIAN_API_KEY=...   attiva Smithsonian (chiave gratuita da https://api.data.gov/signup/)
+//   SMITHSONIAN_API_KEY=...   attiva Smithsonian (chiave gratuita da https://edan.si.edu/openaccess/apidocs/)
+//   PIXABAY_API_KEY=...       attiva Pixabay (chiave gratuita da https://pixabay.com/api/docs/)
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
-import { PhotoFinder, defaultProviders, smithsonian, type BuiltinProviderId, type Provider } from '../src/index.ts';
+import { PhotoFinder, defaultProviders, pixabay, smithsonian, type BuiltinProviderId, type Provider } from '../src/index.ts';
+
+// Carica `.env` se presente, senza sovrascrivere le variabili già impostate.
+try {
+  process.loadEnvFile('.env');
+} catch {
+  // Nessun `.env` (o Node < 20.12): si usano solo le variabili d'ambiente.
+}
 
 const PORT = Number(process.env.PORT) || 3000;
 const providers: Array<BuiltinProviderId | Provider> = [...defaultProviders];
 if (process.env.SMITHSONIAN_API_KEY) providers.push(smithsonian({ apiKey: process.env.SMITHSONIAN_API_KEY }));
+if (process.env.PIXABAY_API_KEY) providers.push(pixabay({ apiKey: process.env.PIXABAY_API_KEY }));
 const finder = new PhotoFinder({ contact: process.env.PHOTOFINDER_CONTACT, providers });
 
 function send(res: http.ServerResponse, code: number, body: unknown, type = 'application/json; charset=utf-8') {

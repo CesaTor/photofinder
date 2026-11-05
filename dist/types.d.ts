@@ -5,7 +5,8 @@ export type Locale = 'it' | 'en';
  *
  * Ogni risultato ha già superato il filtro licenze: si può usare anche
  * commercialmente e modificare. Se `attributionRequired` è `true`, va mostrata
- * la stringa `attribution` vicino all'immagine.
+ * la stringa `attribution` vicino all'immagine. Controlla comunque `licenseUrl`
+ * per le condizioni specifiche della fonte (es. Pixabay vieta l'uso da sola).
  */
 export interface ImageResult {
     /** Identificativo univoco nella forma `<provider>:<id originale>`. */
@@ -22,7 +23,7 @@ export interface ImageResult {
     thumbnailUrl: string;
     /** Pagina originale dell'immagine, dove si trovano tutti i dettagli sulla licenza. */
     sourceUrl: string;
-    /** Nome breve della licenza, es. `"CC BY-SA 4.0"`, `"CC0"`, `"Public domain"`. */
+    /** Nome breve della licenza, es. `"CC BY-SA 4.0"`, `"CC0"`, `"Public domain"`, `"Pixabay Content License"`. */
     license: string;
     licenseUrl: string | null;
     /** `true` se la licenza obbliga a citare l'autore (CC BY, CC BY-SA). */

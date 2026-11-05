@@ -6,7 +6,7 @@ import { wikimedia } from './providers/wikimedia.ts';
 import type { Locale, Provider, SearchEvent, SearchOptions, SearchResponse } from './types.ts';
 /**
  * Provider senza chiave API, utilizzabili per nome nell'opzione `providers`.
- * Quelli che richiedono una chiave (es. `smithsonian`) vanno passati come oggetto.
+ * Quelli che richiedono una chiave (es. `smithsonian`, `pixabay`) vanno passati come oggetto.
  */
 export declare const builtinProviders: {
     readonly openverse: typeof openverse;

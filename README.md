@@ -2,13 +2,13 @@
 
 Libreria TypeScript per cercare **immagini riutilizzabili**, utilizzabili anche commercialmente e modificabili, su più fonti in parallelo. Ogni risultato è accompagnato dalla **stringa di attribuzione** pronta da mostrare, quando la licenza la richiede.
 
-- Una sola chiamata interroga Openverse, Wikimedia Commons, The Met, Cleveland Museum of Art e, se hai una chiave gratuita, Smithsonian. Art Institute of Chicago è disponibile ma disattivato (vedi [Limiti noti](#limiti-noti)).
-- I filtri sulle licenze sono applicati internamente: arrivano solo CC0, pubblico dominio, CC BY e CC BY-SA.
+- Una sola chiamata interroga Openverse, Wikimedia Commons, The Met, Cleveland Museum of Art e, se hai una chiave gratuita, Smithsonian e Pixabay. Art Institute of Chicago è disponibile ma disattivato (vedi [Limiti noti](#limiti-noti)).
+- I filtri sulle licenze sono applicati internamente: arrivano solo CC0, pubblico dominio, CC BY, CC BY-SA e Pixabay Content License.
 - Il formato dei risultati è lo stesso per tutte le fonti.
 - Se una fonte non risponde, le altre restituiscono comunque i loro risultati e la fonte guasta viene saltata per un po'.
 - Risultati in streaming: con `searchStream()` ogni fonte invia i suoi risultati appena risponde, senza aspettare le più lente.
 - Cache in memoria, timeout, annullamento con `AbortSignal`.
-- Nessuna dipendenza a runtime. Solo Smithsonian richiede una chiave API, gratuita.
+- Nessuna dipendenza a runtime. Solo Smithsonian e Pixabay richiedono una chiave API, gratuita.
 
 > **Requisiti:** Node.js ≥ 20.3, o qualsiasi runtime server con `fetch` e `AbortSignal.any`.
 > La libreria è pensata per il **lato server**: i browser non permettono di impostare lo User-Agent richiesto da Wikimedia, e alcune API non abilitano CORS.
@@ -80,8 +80,10 @@ Ogni `ImageResult` ha due campi:
 
 | Campo | Significato |
 |---|---|
-| `attributionRequired` | `true` per CC BY e CC BY-SA, `false` per CC0 e pubblico dominio |
+| `attributionRequired` | `true` per CC BY e CC BY-SA, `false` per CC0, pubblico dominio e Pixabay |
 | `attribution` | testo da mostrare vicino all'immagine, oppure `null` se non serve |
+
+Per **Pixabay** la licenza non obbliga ad attribuire (`attributionRequired: false`), ma i termini dell'API chiedono di indicare la fonte: `attribution` è quindi sempre valorizzata, con autore, licenza e pagina originale.
 
 Il testo segue lo schema **TASL** consigliato da Creative Commons (Titolo, Autore, Fonte, Licenza):
 
@@ -109,6 +111,7 @@ La libreria restituisce solo immagini con licenze che permettono **uso commercia
 | Pubblico dominio / Public Domain Mark | ✅ | no |
 | CC BY (tutte le versioni) | ✅ | **sì** |
 | CC BY-SA (tutte le versioni) | ✅ | **sì** |
+| Pixabay Content License | ✅ | no (ma l'API chiede di indicare Pixabay come fonte) |
 | CC BY-NC, CC BY-ND e combinazioni | ❌ | — |
 | GFDL | ❌ | obbliga a riportare il testo intero della licenza |
 | Fair use / non libere | ❌ | — |
@@ -121,8 +124,9 @@ Come viene applicato il filtro per ogni fonte:
 - **Art Institute of Chicago**: filtro `is_public_domain` nella query (CC0). Il campo `description`, che è CC BY 4.0, non viene richiesto.
 - **Cleveland Museum of Art**: filtro `cc0` nella query, più il controllo `share_license_status === 'CC0'`.
 - **Smithsonian**: filtro `media_usage:CC0` nella query, più il controllo `usage.access === 'CC0'` su ogni media.
+- **Pixabay**: tutti i risultati sono sotto Pixabay Content License, che consente uso commerciale e modifiche. La licenza vieta però di rivendere o distribuire l'immagine *da sola* (senza un'opera che la incorpori), di usarla come marchio e di usarla per prodotti fisici in presenza di marchi riconoscibili.
 
-### Termini d'uso delle API (verificati il 2026-11-02)
+### Termini d'uso delle API (verificati il 2026-11-02; Pixabay il 2026-11-04)
 
 La licenza delle immagini è una cosa, i termini d'uso dell'API sono un'altra. Questo è quanto risulta dalle fonti ufficiali. **Non è una consulenza legale**: prima di andare in produzione fai verificare questi punti a un legale.
 
@@ -133,12 +137,14 @@ La licenza delle immagini è una cosa, i termini d'uso dell'API sono un'altra. Q
 | **The Met** | no | sì: "unrestricted commercial and noncommercial use" (CC0) | soggetta ai Terms and Conditions del museo, che non ho potuto leggere (il sito risponde 429) | **80 richieste/s**. Ogni ricerca ne fa circa 13 (1 ricerca + 12 dettagli) |
 | **Cleveland Museum of Art** | no | sì: "unrestricted commercial and noncommercial use" (CC0) | nessuna condizione oltre al CC0 | nessun limite dichiarato |
 | Smithsonian (opzionale) | **sì**, gratuita (api.data.gov) | sì per i contenuti CC0, che sono gli unici restituiti | — | 1000 richieste/ora per chiave |
+| Pixabay (opzionale) | **sì**, gratuita (registrazione) | sì, con Pixabay Content License: vietato rivendere l'immagine da sola, usarla come marchio o su prodotti fisici con marchi riconoscibili | L'API chiede di mostrare la fonte accanto ai risultati, di **conservare le risposte in cache per 24 ore** e di non collegare permanentemente le immagini (`hotlink`): per un uso diverso dalla visualizzazione temporanea dei risultati vanno scaricate sul proprio server. Vietati download massivi e richieste automatizzate in volume | 100 richieste/60 s per chiave. Massimo 500 risultati per query. La chiave standard non espone l'originale: l'immagine più grande è 1280px. Superato il limite risponde 429 |
 | Art Institute of Chicago (disattivato) | no | sì (CC0) | header `AIC-User-Agent` per cortesia, niente scraping massivo | 60/min. Le immagini però non sono incorporabili (vedi Limiti noti) |
 
 **Limiti comuni a tutte le fonti.** Le richieste partono dal tuo server, quindi i limiti valgono per **tutti i tuoi utenti insieme**, non per ciascuno. Ad esempio, con Wikimedia a 200 richieste/min puoi servire al massimo circa 200 ricerche nuove al minuto (le risposte in cache non contano).
 
 **Rischi legali che restano a carico di chi usa le immagini**
 - **Licenze dichiarate, non verificate.** Openverse e Wikimedia riportano la licenza indicata da chi ha caricato il file. Errori e caricamenti abusivi esistono.
+- **Pixabay Content License non è una licenza Creative Commons.** Consente uso commerciale e modifiche, ma vieta di distribuire l'immagine da sola, di usarla come marchio e di usarla su prodotti fisici con marchi riconoscibili. Il piano API standard non espone l'originale: `imageUrl` è al massimo 1280px.
 - **CC0 e pubblico dominio coprono solo il diritto d'autore.** Restano possibili diritti di terzi: ritratti di persone riconoscibili (diritto all'immagine), marchi e loghi, opere d'arte visibili nella foto.
 - **"Public domain" non vale ovunque allo stesso modo.** Su Commons un file può essere di pubblico dominio negli Stati Uniti ma non in Italia o nell'UE.
 - **Beni culturali italiani (artt. 107–108 del Codice dei beni culturali, D.Lgs. 42/2004).** La riproduzione a scopo commerciale di beni culturali pubblici italiani (ad esempio opere degli Uffizi o il David) può richiedere un'autorizzazione e un canone, **anche quando la foto è CC0 o l'opera è di pubblico dominio**. Il tema è stato oggetto di contenziosi recenti e va valutato con un legale.
@@ -154,7 +160,7 @@ La licenza delle immagini è una cosa, i termini d'uso dell'API sono un'altra. Q
 
 ```ts
 interface PhotoFinderOptions {
-  providers?: Array<'openverse' | 'wikimedia' | 'met' | Provider>;
+  providers?: Array<BuiltinProviderId | Provider>;
   contact?: string;
   userAgent?: string;
   locale?: 'it' | 'en';
@@ -188,15 +194,16 @@ const finder = new PhotoFinder({
 });
 ```
 
-Smithsonian richiede la chiave, quindi va aggiunto come oggetto:
+Smithsonian e Pixabay richiedono la chiave, quindi vanno aggiunti come oggetto:
 
 ```ts
-import { PhotoFinder, defaultProviders, smithsonian } from 'photofinder';
+import { PhotoFinder, defaultProviders, pixabay, smithsonian } from 'photofinder';
 
 const finder = new PhotoFinder({
   providers: [
     ...defaultProviders,
     smithsonian({ apiKey: process.env.SMITHSONIAN_API_KEY! }),
+    pixabay({ apiKey: process.env.PIXABAY_API_KEY! }),
   ],
 });
 ```
@@ -355,7 +362,8 @@ type ProviderStatus =
 | `met(opts?)` | `met` | [The Met Open Access](https://metmuseum.github.io/) | `batchSize` (default 12) |
 | `artic(opts?)` | `artic` | [Art Institute of Chicago](https://api.artic.edu/docs/) — **non attivo di default**, vedi Limiti noti | `pageSize` (default 20) |
 | `cleveland(opts?)` | `cleveland` | [Cleveland Museum of Art Open Access](https://openaccess-api.clevelandart.org/) | `pageSize` (default 20) |
-| `smithsonian(opts)` | `smithsonian` | [Smithsonian Open Access](https://www.si.edu/openaccess) | **`apiKey`** (obbligatoria), `pageSize` (default 20), `thumbSize` (default 400) |
+| `smithsonian(opts)` | `smithsonian` | [Smithsonian Open Access (EDAN)](https://edan.si.edu/openaccess/apidocs/) | **`apiKey`** (obbligatoria), `pageSize` (default 20), `thumbSize` (default 400) |
+| `pixabay(opts)` | `pixabay` | [Pixabay](https://pixabay.com/api/docs/): foto, illustrazioni e vettoriali | **`apiKey`** (obbligatoria), `pageSize` (default 20, da 3 a 200), `imageType` (default `'photo'`), `safeSearch` (default `true`) |
 
 Note:
 
@@ -363,6 +371,7 @@ Note:
 - **The Met**: la ricerca restituisce solo gli ID delle opere, quindi per ognuna serve una richiesta in più. Valori alti di `batchSize` rallentano.
 - **AIC**: le immagini arrivano dal server IIIF del museo, a 843px (la dimensione raccomandata) e con anteprime a 200px.
 - **Smithsonian**: i caratteri speciali della sintassi Lucene vengono rimossi dalla query. La chiave non compare mai negli errori (vedi `redactUrl`).
+- **Pixabay**: usa la lingua di `locale` (`it` o `en`), arrotonda `pageSize` tra 3 e 200 e tronca la query a 100 caratteri. `attribution` è sempre presente perché l'API chiede di indicare la fonte. La chiave non compare mai negli errori.
 
 ### Utility
 
@@ -468,18 +477,22 @@ const finder = new PhotoFinder({ providers: ['wikimedia', mioArchivio] });
 - **Openverse**: dal 20 ottobre 2026 la ricerca va in timeout per tutte le richieste non già in cache, mentre la radice dell'API risponde. È la segnalazione [WordPress/openverse#5649](https://github.com/WordPress/openverse/issues/5649), ancora aperta e senza risposta dei responsabili al 2 novembre. La libreria lo gestisce saltandolo per `pauseOnErrorMs`. Con `searchStream()` le altre fonti non devono aspettarlo.
 - **The Met**: l'endpoint `/v1/search` è stato dismesso il 2026-10-01 e la libreria usa `/v1.1/search`.
 - **Art Institute of Chicago — disattivato di default.** L'API dei dati funziona, ma da novembre 2026 il server delle immagini (`www.artic.edu/iiif`) risponde 403 ("Sorry, you have been blocked") anche ai browser, con `Cross-Origin-Resource-Policy: same-origin`: le immagini non si possono mostrare su siti esterni. È un [problema noto e aperto](https://github.com/art-institute-of-chicago/api-data/issues/9). Il provider resta disponibile con `providers: [..., 'artic']`, per quando verrà risolto. Non va aggirato scaricando le immagini lato server: è proprio ciò che il blocco vuole impedire.
-- **Musei (Met, AIC, Cleveland, Smithsonian)**: coprono soprattutto arte, reperti e immagini storiche. Per foto contemporanee le fonti principali restano Wikimedia e Openverse.
+- **Musei (Met, AIC, Cleveland, Smithsonian)**: coprono soprattutto arte, reperti e immagini storiche. Per foto contemporanee le fonti principali restano Wikimedia, Openverse e Pixabay.
+- **Pixabay**: la cache in memoria predefinita dura 10 minuti, ma i termini dell'API chiedono 24 ore. Per rispettarli usa `cacheTtlMs: 86_400_000` (o una cache condivisa). Le immagini si possono mostrare nei risultati, ma non collegare in modo permanente: per usarle in una pagina o in un prodotto vanno scaricate sul tuo server. Il piano gratuito non espone l'originale e l'API restituisce al massimo 500 risultati per query.
 - I limiti di richieste delle API cambiano nel tempo. Per un uso in produzione, consulta la documentazione di ciascuna fonte e valuta una cache condivisa (ad esempio Redis) al posto di quella in memoria.
 
 ## Sviluppo
 
 ```bash
 npm install
+cp .env.example .env  # poi compila le chiavi; .env è ignorato da git
 npm test            # test con node:test e fetch simulato (non fanno richieste di rete)
 npm run typecheck   # controllo dei tipi di src, test ed esempi
 npm run build       # compila in dist/ (JS + .d.ts)
-npm run demo        # app di prova su http://localhost:3000 (PORT=..., PHOTOFINDER_CONTACT=..., SMITHSONIAN_API_KEY=...)
+npm run demo        # app di prova su http://localhost:3000
 ```
+
+`.env.example` elenca le variabili del demo: `PORT`, `PHOTOFINDER_CONTACT`, `SMITHSONIAN_API_KEY` e `PIXABAY_API_KEY`. Con Node ≥ 20.12 `npm run demo` carica `.env` automaticamente (le variabili già presenti nell'ambiente hanno la precedenza); su versioni precedenti esportale nella shell.
 
 Struttura:
 
@@ -490,7 +503,7 @@ src/
   types.ts            tipi pubblici
   attribution.ts      buildAttribution, stripHtml
   http.ts             fetch con timeout e User-Agent, HttpError
-  providers/          openverse.ts, wikimedia.ts, met.ts, artic.ts, cleveland.ts, smithsonian.ts
+  providers/          openverse.ts, wikimedia.ts, met.ts, artic.ts, cleveland.ts, smithsonian.ts, pixabay.ts
 test/                 test unitari con risposte simulate
 examples/             demo-server.ts (JSON + Server-Sent Events) + public/index.html
 ```

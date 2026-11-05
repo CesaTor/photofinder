@@ -6,7 +6,7 @@ import { openverse } from './providers/openverse.js';
 import { wikimedia } from './providers/wikimedia.js';
 /**
  * Provider senza chiave API, utilizzabili per nome nell'opzione `providers`.
- * Quelli che richiedono una chiave (es. `smithsonian`) vanno passati come oggetto.
+ * Quelli che richiedono una chiave (es. `smithsonian`, `pixabay`) vanno passati come oggetto.
  */
 export const builtinProviders = { openverse, wikimedia, met, artic, cleveland };
 /**
