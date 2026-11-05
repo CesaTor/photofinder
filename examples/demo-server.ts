@@ -4,9 +4,10 @@
 //   PHOTOFINDER_CONTACT=...   contatto per lo User-Agent (consigliato da Wikimedia e AIC)
 //   SMITHSONIAN_API_KEY=...   attiva Smithsonian (chiave gratuita da https://edan.si.edu/openaccess/apidocs/)
 //   PIXABAY_API_KEY=...       attiva Pixabay (chiave gratuita da https://pixabay.com/api/docs/)
+// Per provare le cartine: cerca "cartina fisica Toscana" (provider `maps`).
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
-import { PhotoFinder, defaultProviders, pixabay, smithsonian, type BuiltinProviderId, type Provider } from '../src/index.ts';
+import { PhotoFinder, defaultProviders, pixabay, smithsonian, type BuiltinProviderId, type Provider, type SearchKind } from '../src/index.ts';
 
 // Carica `.env` se presente, senza sovrascrivere le variabili già impostate.
 try {
@@ -31,7 +32,7 @@ function send(res: http.ServerResponse, code: number, body: unknown, type = 'app
  * per ogni fonte appena risponde, poi `done`. Se il browser chiude la connessione,
  * le richieste ancora in corso verso le fonti vengono annullate.
  */
-async function streamSearch(req: http.IncomingMessage, res: http.ServerResponse, q: string, page: number) {
+async function streamSearch(req: http.IncomingMessage, res: http.ServerResponse, q: string, page: number, kind: SearchKind) {
   res.writeHead(200, {
     'Content-Type': 'text/event-stream; charset=utf-8',
     'Cache-Control': 'no-cache',
@@ -42,7 +43,7 @@ async function streamSearch(req: http.IncomingMessage, res: http.ServerResponse,
   const emit = (event: string, data: unknown) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
 
   try {
-    for await (const ev of finder.searchStream(q, { page, signal: ctrl.signal })) {
+    for await (const ev of finder.searchStream(q, { page, kind, signal: ctrl.signal })) {
       // In `done` i risultati sono già stati inviati provider per provider: basta lo stato finale.
       if (ev.type === 'done') emit('done', { providers: ev.response.providers, cached: ev.response.cached });
       else emit(ev.type, ev);
@@ -68,8 +69,9 @@ http
         const q = url.searchParams.get('q')?.trim();
         if (!q) return send(res, 400, { error: 'Parametro "q" mancante' });
         const page = Math.max(1, Math.floor(Number(url.searchParams.get('page')) || 1));
-        if (url.pathname === '/api/search') return send(res, 200, await finder.search(q, { page }));
-        return streamSearch(req, res, q, page);
+        const kind: SearchKind = url.searchParams.get('kind') === 'map' ? 'map' : 'image';
+        if (url.pathname === '/api/search') return send(res, 200, await finder.search(q, { page, kind }));
+        return streamSearch(req, res, q, page, kind);
       }
       send(res, 404, { error: 'Not found' });
     } catch (err) {

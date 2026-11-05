@@ -183,6 +183,56 @@ export const pixabayFixture = {
   ],
 };
 
+export const mapsFixture = {
+  query: {
+    pages: [
+      mapPage(1, 'Relief map of Italien Toskana.png', 'image/png', 'cc-by-sa-3.0', 'CC BY-SA 3.0', 3333, 3703),
+      mapPage(2, 'Reliefkarte Toskana 2019.png', 'image/png', 'cc-by-sa-3.0', 'CC BY-SA 3.0', 3547, 3859),
+      mapPage(3, 'Regions of Italy with official names.png', 'image/png', 'cc-by-sa-4.0', 'CC BY-SA 4.0', 1108, 1097),
+      mapPage(4, 'Tuscany Blank.png', 'image/png', 'cc0', 'CC0', 1000, 1000, 'false'),
+      mapPage(5, 'Old map of Tuscany.jpg', 'image/jpeg', 'pd', 'Public domain', 2000, 2000, 'false'),
+      mapPage(6, 'Protected map.png', 'image/png', 'cc-by-nc-4.0', 'CC BY-NC 4.0', 1200, 1200),
+      mapPage(7, 'Map document.pdf', 'application/pdf', 'pd', 'Public domain', 1000, 1000, 'false'),
+      mapPage(8, 'Physical World Map.svg', 'image/svg+xml', 'pd', 'Public domain', 1000, 500, 'false'),
+    ],
+  },
+};
+
+function mapPage(
+  pageid: number,
+  title: string,
+  mime: string,
+  license: string,
+  shortName: string,
+  width: number,
+  height: number,
+  attribution: 'true' | 'false' = 'true'
+) {
+  const name = title.replace(/^File:/, '');
+  return {
+    pageid,
+    title: `File:${title}`,
+    imageinfo: [
+      {
+        url: `https://upload.wikimedia.org/${encodeURIComponent(name)}`,
+        thumburl: `https://upload.wikimedia.org/thumb/${encodeURIComponent(name)}`,
+        descriptionurl: `https://commons.wikimedia.org/wiki/File:${encodeURIComponent(name)}`,
+        mime,
+        width,
+        height,
+        extmetadata: {
+          ObjectName: { value: name.replace(/\.[^.]+$/, '') },
+          Artist: { value: '<a href="https://commons.wikimedia.org/wiki/User:Autore">Autore</a>' },
+          License: { value: license },
+          LicenseShortName: { value: shortName },
+          LicenseUrl: { value: license.startsWith('cc-') ? `https://creativecommons.org/licenses/${license.replace('cc-', '')}/` : '' },
+          AttributionRequired: { value: attribution },
+        },
+      },
+    ],
+  };
+}
+
 export const smithsonianFixture = {
   status: 200,
   response: {

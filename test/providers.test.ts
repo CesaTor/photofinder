@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { createFetchJson } from '../src/http.ts';
-import { artic, cleveland, isReusableWikimediaLicense, met, openverse, pixabay, smithsonian, wikimedia } from '../src/index.ts';
-import type { Locale, ProviderContext } from '../src/index.ts';
+import { artic, cleveland, isReusableWikimediaLicense, maps, met, openverse, PhotoFinder, pixabay, smithsonian, wikimedia } from '../src/index.ts';
+import type { Locale, ProviderContext, SearchKind } from '../src/index.ts';
 import {
   articFixture,
   clevelandFixture,
@@ -10,6 +10,7 @@ import {
   metObjects,
   metSearchFixture,
   mockFetch,
+  mapsFixture,
   openverseFixture,
   pixabayFixture,
   smithsonianFixture,
@@ -17,11 +18,12 @@ import {
   type Route,
 } from './helpers.ts';
 
-function ctx(routes: Route[], { page = 1, locale = 'it' as Locale } = {}) {
+function ctx(routes: Route[], { page = 1, locale = 'it' as Locale, kind = 'image' as SearchKind } = {}) {
   const mock = mockFetch(routes);
   const context: ProviderContext = {
     page,
     locale,
+    kind,
     userAgent: 'test-agent (dev@example.com)',
     fetchJson: createFetchJson({ fetch: mock.fetch, userAgent: 'test', timeoutMs: 1000 }),
   };
@@ -253,6 +255,114 @@ describe('pixabay', () => {
       assert.match(err.url, /key=\*\*\*/);
       return true;
     });
+  });
+});
+
+describe('maps', () => {
+  it('non interroga Commons se kind non è "map"', async () => {
+    const { context, calls } = ctx([{ match: 'commons.wikimedia.org', body: mapsFixture }], { kind: 'image' });
+    assert.deepEqual(maps().kinds, ['map']);
+    assert.deepEqual(await maps().search('fisica Toscana', context), []);
+    assert.equal(calls.length, 0);
+  });
+
+  it('con kind "map" ma query non pertinente non fa richieste', async () => {
+    const { context, calls } = ctx([{ match: 'commons.wikimedia.org', body: mapsFixture }], { kind: 'map' });
+    assert.deepEqual(await maps().search('gatto', context), []);
+    assert.equal(calls.length, 0);
+  });
+
+  it('traduce "fisica Toscana" nelle categorie giuste', async () => {
+    const { context, calls } = ctx([{ match: 'commons.wikimedia.org', body: mapsFixture }], { kind: 'map' });
+    const results = await maps().search('fisica Toscana', context);
+    const searches = calls.map((c) => new URL(c.url).searchParams.get('gsrsearch'));
+
+    assert.ok(searches.includes('incategory:"Relief location maps of Italy" Toskana'));
+    assert.ok(searches.includes('incategory:"Topographic maps of Tuscany"'));
+    assert.ok(searches.includes('incategory:"Maps of Tuscany" physical'));
+
+    assert.equal(results[0].id, 'maps:1');
+    assert.equal(results[0].title, 'Relief map of Italien Toskana');
+    assert.equal(results[0].width, 3333);
+    assert.equal(results[0].height, 3703);
+    assert.equal(results[0].creator, 'Autore', 'pulisce l\'HTML dell\'autore');
+    assert.match(results[0].attribution!, /CC BY-SA 3.0/);
+  });
+
+  it('riconosce le maiuscole', async () => {
+    const { context, calls } = ctx([{ match: 'commons.wikimedia.org', body: mapsFixture }], { kind: 'map' });
+    await maps().search('Fisica Toscana', context);
+    const searches = calls.map((c) => new URL(c.url).searchParams.get('gsrsearch'));
+    assert.ok(searches.includes('incategory:"Relief location maps of Italy" Toskana'));
+  });
+
+  it('gestisce i nomi con accenti', async () => {
+    const { context, calls } = ctx([{ match: 'commons.wikimedia.org', body: mapsFixture }], { kind: 'map' });
+    await maps().search('fisica Trentino-Alto Adige', context);
+    const searches = calls.map((c) => new URL(c.url).searchParams.get('gsrsearch'));
+    assert.ok(searches.includes('incategory:"Relief location maps of Italy" Trentino-Südtirol'));
+  });
+
+  it('esclude le licenze non riutilizzabili e i file non immagine', async () => {
+    const { context } = ctx([{ match: 'commons.wikimedia.org', body: mapsFixture }], { kind: 'map' });
+    const results = await maps().search('fisica Toscana', context);
+    const ids = results.map((r) => r.id);
+
+    assert.ok(!ids.includes('maps:6'), 'CC BY-NC va scartata');
+    assert.ok(!ids.includes('maps:7'), 'il PDF va scartato');
+    assert.equal(results.find((r) => r.id === 'maps:8')?.attribution, null, 'pubblico dominio senza attribuzione');
+  });
+
+  it('copre politica, muta, mondo e storico', async () => {
+    const { context, calls } = ctx([{ match: 'commons.wikimedia.org', body: mapsFixture }], { kind: 'map' });
+    await maps().search('politica Italia', context);
+    await maps().search('muta mondo', context);
+    await maps().search('storica Toscana', context);
+
+    const searches = calls.map((c) => new URL(c.url).searchParams.get('gsrsearch'));
+    assert.ok(searches.includes('incategory:"Maps of Italy" political'));
+    assert.ok(searches.includes('incategory:"Blank maps of the world"'));
+    assert.ok(searches.includes('incategory:"Old maps of Tuscany"'));
+  });
+
+  it('riconosce planisfero e mappamondo come mondo', async () => {
+    const { context, calls } = ctx([{ match: 'commons.wikimedia.org', body: mapsFixture }], { kind: 'map' });
+    await maps().search('fisica planisfero', context);
+    await maps().search('politica mappamondo', context);
+
+    const searches = calls.map((c) => new URL(c.url).searchParams.get('gsrsearch'));
+    assert.ok(searches.includes('intitle:"physical map" world'));
+    assert.ok(searches.includes('incategory:"Political maps of the world"'));
+  });
+
+  it('pagina con offset e limite', async () => {
+    const { context, calls } = ctx([{ match: 'commons.wikimedia.org', body: mapsFixture }], { page: 3, kind: 'map' });
+    await maps({ pageSize: 10 }).search('fisica Toscana', context);
+
+    for (const call of calls) {
+      const url = new URL(call.url);
+      assert.equal(url.searchParams.get('gsrlimit'), '10');
+      assert.equal(url.searchParams.get('gsroffset'), '20');
+      assert.equal(url.searchParams.get('gsrnamespace'), '6');
+    }
+  });
+
+  it('con un tipo ma senza soggetto usa l\'Italia', async () => {
+    const { context, calls } = ctx([{ match: 'commons.wikimedia.org', body: mapsFixture }], { kind: 'map' });
+    await maps().search('fisica', context);
+
+    const searches = calls.map((c) => new URL(c.url).searchParams.get('gsrsearch')).filter((s): s is string => s !== null);
+    assert.ok(searches.some((s) => s.includes('Relief location maps of Italy')));
+    assert.ok(searches.some((s) => s.includes('Maps of Italy')));
+  });
+
+  it('è utilizzabile per nome come provider incluso', async () => {
+    const mock = mockFetch([{ match: 'commons.wikimedia.org', body: mapsFixture }]);
+    const finder = new PhotoFinder({ providers: ['maps'], fetch: mock.fetch, contact: 'dev@example.com' });
+    const res = await finder.search('fisica Toscana', { kind: 'map' });
+
+    assert.deepEqual(res.providers.maps, { ok: true, count: 6 });
+    assert.equal(res.results[0].provider, 'Cartine');
   });
 });
 

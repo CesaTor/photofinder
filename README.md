@@ -2,7 +2,7 @@
 
 Libreria TypeScript per cercare **immagini riutilizzabili**, utilizzabili anche commercialmente e modificabili, su più fonti in parallelo. Ogni risultato è accompagnato dalla **stringa di attribuzione** pronta da mostrare, quando la licenza la richiede.
 
-- Una sola chiamata interroga Openverse, Wikimedia Commons, The Met, Cleveland Museum of Art e, se hai una chiave gratuita, Smithsonian e Pixabay. Art Institute of Chicago è disponibile ma disattivato (vedi [Limiti noti](#limiti-noti)).
+- Una sola chiamata interroga Openverse, Wikimedia Commons, The Met, Cleveland Museum of Art e, se hai una chiave gratuita, Smithsonian e Pixabay. Le cartine geografiche hanno un provider dedicato (`maps`). Art Institute of Chicago è disponibile ma disattivato (vedi [Limiti noti](#limiti-noti)).
 - I filtri sulle licenze sono applicati internamente: arrivano solo CC0, pubblico dominio, CC BY, CC BY-SA e Pixabay Content License.
 - Il formato dei risultati è lo stesso per tutte le fonti.
 - Se una fonte non risponde, le altre restituiscono comunque i loro risultati e la fonte guasta viene saltata per un po'.
@@ -26,6 +26,7 @@ Libreria TypeScript per cercare **immagini riutilizzabili**, utilizzabili anche 
   - [`ImageResult`](#imageresult)
   - [`SearchResponse` e `ProviderStatus`](#searchresponse-e-providerstatus)
   - [Provider inclusi](#provider-inclusi)
+    - [Cartine geografiche](#cartine-geografiche)
   - [Utility](#utility)
 - [Gestione degli errori](#gestione-degli-errori)
 - [Scrivere un provider personalizzato](#scrivere-un-provider-personalizzato)
@@ -174,7 +175,7 @@ interface PhotoFinderOptions {
 
 | Opzione | Default | Descrizione |
 |---|---|---|
-| `providers` | `defaultProviders`: `openverse`, `wikimedia`, `met`, `cleveland` | Fonti da interrogare: nomi dei provider inclusi oppure oggetti `Provider`, inclusi o personalizzati |
+| `providers` | `defaultProviders`: `openverse`, `wikimedia`, `met`, `cleveland`, `maps` | Fonti da interrogare: nomi dei provider inclusi oppure oggetti `Provider`, inclusi o personalizzati |
 | `contact` | — | Email o URL aggiunti allo User-Agent e all'header `AIC-User-Agent`. **Fortemente consigliato**: senza contatto Wikimedia limita a 10 richieste/min invece di 200. Se manca, viene stampato un avviso |
 | `userAgent` | `photofinder/<versione> (<contact>)` | User-Agent completo; se impostato, `contact` viene ignorato |
 | `locale` | `'it'` | Lingua delle stringhe di attribuzione |
@@ -211,34 +212,39 @@ const finder = new PhotoFinder({
 ### `finder.search(query, options)`
 
 ```ts
-search(query: string, options?: { page?: number; signal?: AbortSignal }): Promise<SearchResponse>
+search(query: string, options?: { page?: number; signal?: AbortSignal; kind?: SearchKind }): Promise<SearchResponse>
 ```
 
-- Interroga tutte le fonti attive in parallelo e alterna i risultati, uno per fonte a turno.
+`SearchKind` è `'image' | 'map'`.
+
+- Interroga in parallelo i provider del tipo richiesto (`kind`, default `'image'`) e alterna i risultati, uno per fonte a turno.
 - Restituisce la risposta solo quando **tutte** le fonti hanno risposto. Per mostrare i risultati man mano, usa [`searchStream`](#findersearchstreamquery-options).
 - **Non lancia eccezioni se una fonte fallisce**: l'errore finisce in `response.providers[id]`.
-- Lancia `TypeError` se `query` è vuota o `page` non è un intero ≥ 1.
+- Lancia `TypeError` se `query` è vuota, `page` non è un intero ≥ 1, `kind` non è valido o non c'è nessun provider per il tipo richiesto.
 - Se `signal` viene annullato, la Promise viene rifiutata con l'errore del segnale (`AbortError`).
-- Mette in cache solo le risposte in cui **tutte** le fonti hanno risposto. La chiave della cache ignora maiuscole e spazi iniziali e finali.
+- Mette in cache solo le risposte in cui **tutte** le fonti hanno risposto. La chiave della cache include `kind` e ignora maiuscole e spazi iniziali e finali.
 
 ```ts
 const ctrl = new AbortController();
 setTimeout(() => ctrl.abort(), 3000);
 const res = await finder.search('gatto', { signal: ctrl.signal });
+
+// Solo cartine: il finder deve includere il provider 'maps'
+const cartine = await finder.search('fisica Toscana', { kind: 'map' });
 ```
 
 ### `finder.searchStream(query, options)`
 
 ```ts
-searchStream(query: string, options?: { page?: number; signal?: AbortSignal }): AsyncGenerator<SearchEvent>
+searchStream(query: string, options?: { page?: number; signal?: AbortSignal; kind?: SearchKind }): AsyncGenerator<SearchEvent>
 ```
 
-Stessa ricerca di `search()`, ma restituisce gli eventi **man mano che le fonti rispondono**. Così l'interfaccia può mostrare subito i primi risultati e indicare quali fonti sono ancora in attesa, invece di aspettare la più lenta (ad esempio Openverse, che va in timeout dopo `timeoutMs`).
+Stessa ricerca di `search()`, ma restituisce gli eventi **man mano che le fonti rispondono**. Così l'interfaccia può mostrare subito i primi risultati e indicare quali fonti sono ancora in attesa, invece di aspettare la più lenta (ad esempio Openverse, che va in timeout dopo `timeoutMs`). Anche qui `kind` filtra i provider: con `'map'` partecipa solo chi dichiara `kinds: ['map']`.
 
 ```ts
 type SearchEvent =
-  | { type: 'start'; query: string; page: number;
-      providers: Array<{ id: string; name: string }>;  // tutte le fonti configurate
+  | { type: 'start'; query: string; page: number; kind: SearchKind;
+      providers: Array<{ id: string; name: string }>;  // fonti configurate per quel tipo
       pending: string[];                               // quelle interrogate in rete
       cached: boolean }
   | { type: 'provider'; provider: string; name: string;
@@ -329,6 +335,8 @@ interface ImageResult {
   creator: string | null;
   imageUrl: string;            // immagine a piena risoluzione
   thumbnailUrl: string;        // anteprima (~400px dove disponibile)
+  width?: number;              // larghezza in pixel, se disponibile
+  height?: number;             // altezza in pixel, se disponibile
   sourceUrl: string;           // pagina originale con i dettagli della licenza
   license: string;             // es. "CC BY-SA 4.0", "CC0", "Public domain"
   licenseUrl: string | null;
@@ -343,6 +351,7 @@ interface ImageResult {
 interface SearchResponse {
   query: string;     // la query normalizzata (senza spazi iniziali e finali)
   page: number;
+  kind: SearchKind;  // 'image' oppure 'map'
   results: ImageResult[];
   providers: Record<string, ProviderStatus>;
   cached: boolean;
@@ -364,6 +373,7 @@ type ProviderStatus =
 | `cleveland(opts?)` | `cleveland` | [Cleveland Museum of Art Open Access](https://openaccess-api.clevelandart.org/) | `pageSize` (default 20) |
 | `smithsonian(opts)` | `smithsonian` | [Smithsonian Open Access (EDAN)](https://edan.si.edu/openaccess/apidocs/) | **`apiKey`** (obbligatoria), `pageSize` (default 20), `thumbSize` (default 400) |
 | `pixabay(opts)` | `pixabay` | [Pixabay](https://pixabay.com/api/docs/): foto, illustrazioni e vettoriali | **`apiKey`** (obbligatoria), `pageSize` (default 20, da 3 a 200), `imageType` (default `'photo'`), `safeSearch` (default `true`) |
+| `maps(opts?)` | `maps` | Cartine geografiche da Wikimedia Commons: fisiche, politiche, mute, topografiche, satellitari e storiche | `pageSize` (default 50, max 50), `thumbWidth` (default 400) |
 
 Note:
 
@@ -372,6 +382,42 @@ Note:
 - **AIC**: le immagini arrivano dal server IIIF del museo, a 843px (la dimensione raccomandata) e con anteprime a 200px.
 - **Smithsonian**: i caratteri speciali della sintassi Lucene vengono rimossi dalla query. La chiave non compare mai negli errori (vedi `redactUrl`).
 - **Pixabay**: usa la lingua di `locale` (`it` o `en`), arrotonda `pageSize` tra 3 e 200 e tronca la query a 100 caratteri. `attribution` è sempre presente perché l'API chiede di indicare la fonte. La chiave non compare mai negli errori.
+- **Cartine**: `maps` è nei provider di default, ma viene interrogato **solo** con `kind: 'map'`; nelle ricerche di immagini normali non viene contattato.
+
+### Cartine geografiche
+
+Il provider `maps` cerca cartine già pronte su Wikimedia Commons. È incluso nei provider di default, ma viene interrogato **solo** quando la richiesta passa `kind: 'map'`.
+
+```ts
+import { PhotoFinder } from 'photofinder';
+
+const finder = new PhotoFinder({ contact: 'dev@tuodominio.it' });
+
+await finder.search('fisica Toscana', { kind: 'map' });
+await finder.search('politica Italia', { kind: 'map' });
+await finder.search('muta mondo', { kind: 'map' });
+await finder.search('topografica Lombardia', { kind: 'map' });
+```
+
+L’interfaccia può aggiungere un pulsante **“Cartine”** che passa `kind: 'map'`: finché il pulsante è spento, `kind` resta `'image'` e la ricerca non interroga il provider delle cartine. Anche `#cartine` è accettato come prefisso, ma non è necessario.
+
+Riconosce **Italia**, **mondo** e le **20 regioni italiane**. I tipi sono `fisica`, `politica`, `muta`, `topografica`, `satellitare` e `storica`; senza tipo restituisce un mix. Una query senza soggetto e senza tipo (ad esempio “gatto”) non produce cartine, anche con `kind: 'map'`.
+
+Copertura verificata con l'API di Commons (novembre 2026):
+
+| Categoria | File |
+|---|---|
+| `Relief location maps of Italy` | 42, incluse le carte in rilievo di tutte le 20 regioni (CC BY-SA 3.0) |
+| `Maps of Italy` | 371, per le cartine politiche |
+| `Blank maps of Italy` | 55 carte mute |
+| `Blank maps of the world` | 62 |
+| `Political maps of the world` | 358 |
+| `Topographic maps of the world` | 154 |
+| `intitle:"physical map" world` | 94 carte fisiche del mondo |
+
+Le etichette possono essere in italiano, inglese o tedesco: il provider restituisce il titolo originale e non traduce la mappa. I risultati includono `width` e `height`, così l'interfaccia può mostrare la risoluzione e il docente può scegliere la variante più adatta.
+
+Ogni ricerca fa da 1 a 4 richieste a Commons, una per categoria; la cache di `PhotoFinder` evita di ripeterle.
 
 ### Utility
 
@@ -427,6 +473,7 @@ Errori tipici:
 | `HTTP 429`, `HTTP 504`… | limite di richieste superato o servizio non disponibile |
 | `Wikimedia: cirrussearch-too-busy-error (...)` | ricerca di Commons sovraccarica. MediaWiki risponde HTTP 200 con un campo `error`, che la libreria trasforma in errore |
 | `In pausa dopo un errore recente` | la fonte è stata saltata perché ha fallito da poco (vedi `pauseOnErrorMs`) |
+| `Nessun provider configurato per il tipo "map"` | hai chiesto `kind: 'map'` ma non hai aggiunto il provider `maps` |
 
 ## Scrivere un provider personalizzato
 
@@ -471,6 +518,20 @@ const mioArchivio: Provider = {
 const finder = new PhotoFinder({ providers: ['wikimedia', mioArchivio] });
 ```
 
+Un provider può dichiarare quali tipi di ricerca supporta:
+
+```ts
+const mioArchivio: Provider = {
+  id: 'archivio',
+  name: 'Archivio interno',
+  kinds: ['map'], // senza questa proprietà vale ['image']
+  async search(query, ctx) { /* ... */ },
+};
+
+const finder = new PhotoFinder({ providers: [...defaultProviders, mioArchivio] });
+await finder.search('fisica Toscana', { kind: 'map' }); // interroga solo mioArchivio
+```
+
 ## Limiti noti
 
 - **Lingua delle query**: Commons e Openverse sono indicizzati soprattutto in inglese. Ad esempio, "cartina toscana" trova pochi file, "map tuscany" decine di migliaia. Per un pubblico italiano conviene tradurre la query o cercare in entrambe le lingue.
@@ -479,6 +540,7 @@ const finder = new PhotoFinder({ providers: ['wikimedia', mioArchivio] });
 - **Art Institute of Chicago — disattivato di default.** L'API dei dati funziona, ma da novembre 2026 il server delle immagini (`www.artic.edu/iiif`) risponde 403 ("Sorry, you have been blocked") anche ai browser, con `Cross-Origin-Resource-Policy: same-origin`: le immagini non si possono mostrare su siti esterni. È un [problema noto e aperto](https://github.com/art-institute-of-chicago/api-data/issues/9). Il provider resta disponibile con `providers: [..., 'artic']`, per quando verrà risolto. Non va aggirato scaricando le immagini lato server: è proprio ciò che il blocco vuole impedire.
 - **Musei (Met, AIC, Cleveland, Smithsonian)**: coprono soprattutto arte, reperti e immagini storiche. Per foto contemporanee le fonti principali restano Wikimedia, Openverse e Pixabay.
 - **Pixabay**: la cache in memoria predefinita dura 10 minuti, ma i termini dell'API chiedono 24 ore. Per rispettarli usa `cacheTtlMs: 86_400_000` (o una cache condivisa). Le immagini si possono mostrare nei risultati, ma non collegare in modo permanente: per usarle in una pagina o in un prodotto vanno scaricate sul tuo server. Il piano gratuito non espone l'originale e l'API restituisce al massimo 500 risultati per query.
+- **Cartine**: le mappe di Commons non sono uniformi. Molte hanno etichette in tedesco o inglese, alcune sono storiche e la copertura per regione varia. Per le carte in rilievo la fonte migliore è `Relief location maps of Italy`; per le politiche `Maps of <regione>`; per le mute `Blank maps of Italy` e `Blank maps of the world`. Non è possibile ottenere colori, nomi o confini personalizzati: per quello serve un generatore cartografico separato.
 - I limiti di richieste delle API cambiano nel tempo. Per un uso in produzione, consulta la documentazione di ciascuna fonte e valuta una cache condivisa (ad esempio Redis) al posto di quella in memoria.
 
 ## Sviluppo
@@ -503,7 +565,7 @@ src/
   types.ts            tipi pubblici
   attribution.ts      buildAttribution, stripHtml
   http.ts             fetch con timeout e User-Agent, HttpError
-  providers/          openverse.ts, wikimedia.ts, met.ts, artic.ts, cleveland.ts, smithsonian.ts, pixabay.ts
+  providers/          openverse.ts, wikimedia.ts, maps.ts, met.ts, artic.ts, cleveland.ts, smithsonian.ts, pixabay.ts
 test/                 test unitari con risposte simulate
 examples/             demo-server.ts (JSON + Server-Sent Events) + public/index.html
 ```

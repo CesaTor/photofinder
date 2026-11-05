@@ -17,9 +17,11 @@
     body { margin: 0; font: 15px/1.45 system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); }
     main { max-width: 1200px; margin: 0 auto; padding: 32px 16px 64px; }
     h1 { margin: 0 0 16px; font-size: 22px; }
-    form { display: flex; gap: 8px; }
+    form { display: flex; gap: 8px; align-items: center; }
     input { flex: 1; min-width: 0; padding: 12px 14px; font: inherit; border: 1px solid var(--border);
             border-radius: 10px; background: var(--card); color: var(--text); }
+    form .switch { display: flex; align-items: center; gap: 6px; font-size: 14px; color: var(--muted); white-space: nowrap; }
+    form .switch input { flex: none; width: auto; margin: 0; padding: 0; accent-color: var(--accent); }
     button { padding: 12px 20px; font: inherit; font-weight: 600; border: 0; border-radius: 10px;
              background: var(--accent); color: #fff; cursor: pointer; }
     button:disabled { opacity: .6; cursor: default; }
@@ -76,6 +78,7 @@
   <h1>Photofinder</h1>
   <form id="f">
     <input id="q" type="search" placeholder="Cerca immagini libere, es. montagna, gatto, Roma…" autofocus>
+    <label class="switch"><input id="maps" type="checkbox"> Cartine</label>
     <button id="go" type="submit">Cerca</button>
   </form>
   <div class="progress" id="progress"><div></div></div>
@@ -112,6 +115,7 @@
         <div class="title" title="${esc(r.title)}">${esc(r.title || 'Senza titolo')}</div>
         <div class="meta">
           <span class="tag">${esc(r.provider)}</span>
+          ${r.width && r.height ? `<span class="tag">${r.width}×${r.height}</span>` : ''}
           <span class="tag ${r.attributionRequired ? '' : 'free'}">${esc(r.license)}</span>
         </div>
         ${r.attribution
@@ -192,7 +196,7 @@
     setSkeletons(true);
     render(false);
 
-    const es = new EventSource(`/api/search/stream?q=${encodeURIComponent(query)}&page=${page}`);
+    const es = new EventSource(`/api/search/stream?q=${encodeURIComponent(query)}&page=${page}&kind=${$('maps').checked ? 'map' : 'image'}`);
     source = es;
 
     es.addEventListener('start', (e) => {
@@ -234,6 +238,12 @@
   $('f').addEventListener('submit', (e) => {
     e.preventDefault();
     query = $('q').value.trim();
+    if (query) run(true);
+  });
+  $('maps').addEventListener('change', () => {
+    $('q').placeholder = $('maps').checked
+      ? 'Cartine: es. fisica Toscana, politica Italia, muta mondo…'
+      : 'Cerca immagini libere, es. montagna, gatto, Roma…';
     if (query) run(true);
   });
   $('more').addEventListener('click', () => { page++; run(false); });

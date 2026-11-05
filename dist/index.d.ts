@@ -14,8 +14,10 @@ export { smithsonian } from './providers/smithsonian.ts';
 export type { SmithsonianOptions } from './providers/smithsonian.ts';
 export { pixabay } from './providers/pixabay.ts';
 export type { PixabayOptions } from './providers/pixabay.ts';
+export { maps } from './providers/maps.ts';
+export type { MapsOptions } from './providers/maps.ts';
 export { buildAttribution, stripHtml } from './attribution.ts';
 export type { AttributionParts } from './attribution.ts';
 export { HttpError, redactUrl } from './http.ts';
-export type { FetchJson, ImageResult, Locale, Provider, ProviderContext, ProviderStatus, SearchEvent, SearchOptions, SearchResponse, } from './types.ts';
+export type { FetchJson, ImageResult, Locale, Provider, ProviderContext, ProviderStatus, SearchEvent, SearchKind, SearchOptions, SearchResponse, } from './types.ts';
 //# sourceMappingURL=index.d.ts.map

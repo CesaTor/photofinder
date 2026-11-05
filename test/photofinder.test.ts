@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { HttpError, PhotoFinder, buildAttribution, interleave } from '../src/index.ts';
-import type { ImageResult, Provider } from '../src/index.ts';
+import type { ImageResult, Provider, SearchKind } from '../src/index.ts';
 import { articFixture, clevelandFixture, metEmptyFixture, mockFetch, openverseFixture, wikimediaFixture } from './helpers.ts';
 
 function fakeImage(id: string): ImageResult {
@@ -21,11 +21,12 @@ function fakeImage(id: string): ImageResult {
 }
 
 /** Provider finto che conta le chiamate e può fallire a comando. */
-function fakeProvider(id: string, items: string[], opts: { fail?: boolean } = {}) {
+function fakeProvider(id: string, items: string[], opts: { fail?: boolean; kinds?: SearchKind[] } = {}) {
   const state = { calls: 0, fail: opts.fail ?? false };
   const provider: Provider = {
     id,
     name: id,
+    kinds: opts.kinds,
     async search() {
       state.calls++;
       if (state.fail) throw new Error(`${id} giù`);
@@ -139,6 +140,64 @@ describe('PhotoFinder', () => {
     const p = finder.search('x', { signal: ctrl.signal });
     ctrl.abort();
     await assert.rejects(p, { name: 'AbortError' });
+  });
+
+  it('con kind "map" interroga solo i provider di cartine', async () => {
+    const image = fakeProvider('image', ['img']);
+    const map = fakeProvider('map', ['map'], { kinds: ['map'] });
+    const finder = new PhotoFinder({ providers: [image.provider, map.provider], cacheTtlMs: 0 });
+
+    const res = await finder.search('fisica Toscana', { kind: 'map' });
+    assert.equal(res.kind, 'map');
+    assert.deepEqual(res.providers, { map: { ok: true, count: 1 } });
+    assert.equal(res.results.length, 1);
+    assert.equal(image.state.calls, 0);
+    assert.equal(map.state.calls, 1);
+  });
+
+  it('senza kind interroga solo i provider di immagini', async () => {
+    const image = fakeProvider('image', ['img']);
+    const map = fakeProvider('map', ['map'], { kinds: ['map'] });
+    const finder = new PhotoFinder({ providers: [image.provider, map.provider], cacheTtlMs: 0 });
+
+    const res = await finder.search('montagna');
+    assert.equal(res.kind, 'image');
+    assert.deepEqual(res.providers, { image: { ok: true, count: 1 } });
+    assert.equal(image.state.calls, 1);
+    assert.equal(map.state.calls, 0);
+  });
+
+  it('lo streaming elenca solo i provider del tipo richiesto', async () => {
+    const image = fakeProvider('image', ['img']);
+    const map = fakeProvider('map', ['map'], { kinds: ['map'] });
+    const finder = new PhotoFinder({ providers: [image.provider, map.provider], cacheTtlMs: 0 });
+
+    const events = [];
+    for await (const ev of finder.searchStream('fisica Toscana', { kind: 'map' })) events.push(ev);
+    const start = events[0];
+    assert.ok(start.type === 'start');
+    assert.equal(start.kind, 'map');
+    assert.deepEqual(start.providers, [{ id: 'map', name: 'map' }]);
+    assert.deepEqual(start.pending, ['map']);
+  });
+
+  it('se non ci sono provider per il tipo richiesto lancia un errore', async () => {
+    const finder = new PhotoFinder({ providers: [fakeProvider('image', ['img']).provider] });
+    await assert.rejects(finder.search('x', { kind: 'map' }), /Nessun provider/);
+  });
+
+  it('la cache distingue image e map', async () => {
+    const image = fakeProvider('image', ['img']);
+    const map = fakeProvider('map', ['map'], { kinds: ['map'] });
+    const finder = new PhotoFinder({ providers: [image.provider, map.provider], cacheTtlMs: 60_000 });
+
+    await finder.search('toscana');
+    await finder.search('toscana', { kind: 'map' });
+    assert.equal(image.state.calls, 1);
+    assert.equal(map.state.calls, 1);
+
+    await finder.search('toscana', { kind: 'map' });
+    assert.equal(map.state.calls, 1, 'la seconda ricerca map arriva dalla cache');
   });
 
   it('valida gli argomenti', async () => {

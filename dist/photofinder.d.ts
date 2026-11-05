@@ -1,9 +1,10 @@
 import { artic } from './providers/artic.ts';
 import { cleveland } from './providers/cleveland.ts';
+import { maps } from './providers/maps.ts';
 import { met } from './providers/met.ts';
 import { openverse } from './providers/openverse.ts';
 import { wikimedia } from './providers/wikimedia.ts';
-import type { Locale, Provider, SearchEvent, SearchOptions, SearchResponse } from './types.ts';
+import type { Locale, Provider, SearchEvent, SearchKind, SearchOptions, SearchResponse } from './types.ts';
 /**
  * Provider senza chiave API, utilizzabili per nome nell'opzione `providers`.
  * Quelli che richiedono una chiave (es. `smithsonian`, `pixabay`) vanno passati come oggetto.
@@ -14,6 +15,7 @@ export declare const builtinProviders: {
     readonly met: typeof met;
     readonly artic: typeof artic;
     readonly cleveland: typeof cleveland;
+    readonly maps: typeof maps;
 };
 export type BuiltinProviderId = keyof typeof builtinProviders;
 /**
@@ -26,7 +28,7 @@ export interface PhotoFinderOptions {
     /**
      * Provider da interrogare: nomi dei provider inclusi o oggetti {@link Provider}
      * (inclusi o personalizzati). Default: {@link defaultProviders}
-     * (`openverse`, `wikimedia`, `met`, `cleveland`).
+     * (`openverse`, `wikimedia`, `met`, `cleveland`, `maps`).
      */
     providers?: Array<BuiltinProviderId | Provider>;
     /**
@@ -67,21 +69,27 @@ export declare class PhotoFinder {
     readonly providers: readonly Provider[];
     constructor(options?: PhotoFinderOptions);
     /**
-     * Cerca `query` su tutti i provider e restituisce la risposta completa, quando
-     * hanno risposto tutti. Non lancia eccezioni se un provider fallisce: l'errore
-     * è riportato in `response.providers[id]` e gli altri risultati vengono
-     * restituiti comunque.
+     * Provider disponibili per un tipo di ricerca.
+     * I provider senza `kinds` sono considerati solo per `'image'`.
+     */
+    providersFor(kind?: SearchKind): readonly Provider[];
+    /**
+     * Cerca `query` su tutti i provider del tipo richiesto e restituisce la
+     * risposta completa, quando hanno risposto tutti. Non lancia eccezioni se un
+     * provider fallisce: l'errore è riportato in `response.providers[id]` e gli
+     * altri risultati vengono restituiti comunque.
      *
      * Per mostrare i risultati man mano che arrivano usa {@link searchStream}.
      *
-     * @throws {TypeError} se `query` è vuota o `page` non è un intero ≥ 1.
+     * @throws {TypeError} se `query` è vuota, `page` non è un intero ≥ 1, `kind`
+     *   non è valido o non c'è nessun provider per il tipo richiesto.
      * @throws l'errore di `signal` se la ricerca viene annullata.
      */
     search(query: string, options?: SearchOptions): Promise<SearchResponse>;
     /**
      * Come {@link search}, ma restituisce gli eventi appena disponibili:
      *
-     * 1. `start`: elenco dei provider interrogati (`pending`);
+     * 1. `start`: elenco dei provider interrogati per il tipo richiesto (`pending`);
      * 2. un `provider` per ciascun provider, nell'ordine in cui rispondono, con i
      *    suoi risultati e i provider ancora in attesa;
      * 3. `done`: la risposta completa, identica a quella di `search()`.
@@ -94,10 +102,16 @@ export declare class PhotoFinder {
      *   if (ev.type === 'provider') mostra(ev.results, { inAttesa: ev.pending });
      * }
      *
-     * @throws {TypeError} se `query` è vuota o `page` non è un intero ≥ 1.
+     * @example
+     * for await (const ev of finder.searchStream('fisica Toscana', { kind: 'map' })) {
+     *   if (ev.type === 'provider') mostra(ev.results, { inAttesa: ev.pending });
+     * }
+     *
+     * @throws {TypeError} se `query` è vuota, `page` non è un intero ≥ 1, `kind`
+     *   non è valido o non c'è nessun provider per il tipo richiesto.
      * @throws l'errore di `signal` se la ricerca viene annullata.
      */
-    searchStream(query: string, { page, signal }?: SearchOptions): AsyncGenerator<SearchEvent, void, undefined>;
+    searchStream(query: string, { page, signal, kind }?: SearchOptions): AsyncGenerator<SearchEvent, void, undefined>;
     /** Svuota la cache delle ricerche e azzera le pause dei provider. */
     reset(): void;
 }

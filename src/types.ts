@@ -1,6 +1,9 @@
 /** Lingua della stringa di attribuzione generata. */
 export type Locale = 'it' | 'en';
 
+/** Tipo di ricerca: immagini generiche o cartine geografiche. */
+export type SearchKind = 'image' | 'map';
+
 /**
  * Un'immagine riutilizzabile, nello stesso formato per tutti i provider.
  *
@@ -22,6 +25,10 @@ export interface ImageResult {
   imageUrl: string;
   /** URL di un'anteprima (circa 400px di larghezza dove il provider lo consente). */
   thumbnailUrl: string;
+  /** Larghezza dell'immagine in pixel, se il provider la fornisce. */
+  width?: number;
+  /** Altezza dell'immagine in pixel, se il provider la fornisce. */
+  height?: number;
   /** Pagina originale dell'immagine, dove si trovano tutti i dettagli sulla licenza. */
   sourceUrl: string;
   /** Nome breve della licenza, es. `"CC BY-SA 4.0"`, `"CC0"`, `"Public domain"`, `"Pixabay Content License"`. */
@@ -44,6 +51,8 @@ export interface ProviderContext {
   /** Pagina richiesta, a partire da 1. */
   page: number;
   locale: Locale;
+  /** Tipo di ricerca richiesto. */
+  kind: SearchKind;
   /** User-Agent configurato in `PhotoFinder`, per i provider che lo vogliono anche in un header dedicato. */
   userAgent: string;
   fetchJson: FetchJson;
@@ -58,6 +67,12 @@ export interface Provider {
   id: string;
   /** Nome leggibile, es. `"Wikimedia Commons"`. */
   name: string;
+  /**
+   * Tipi di ricerca supportati. Se non indicato vale `['image']`.
+   * Un provider di cartine dichiara `['map']` e viene interrogato solo con
+   * `kind: 'map'`.
+   */
+  kinds?: readonly SearchKind[];
   search(query: string, ctx: ProviderContext): Promise<ImageResult[]>;
 }
 
@@ -75,6 +90,8 @@ export type ProviderStatus =
 export interface SearchResponse {
   query: string;
   page: number;
+  /** Tipo di ricerca richiesto. */
+  kind: SearchKind;
   /** Risultati di tutti i provider, alternati (uno per provider a turno). */
   results: ImageResult[];
   /** Esito di ogni provider, indicizzato per {@link Provider.id}. */
@@ -88,6 +105,12 @@ export interface SearchOptions {
   page?: number;
   /** Per annullare la ricerca. */
   signal?: AbortSignal;
+  /**
+   * Tipo di ricerca: `'image'` (default) o `'map'` per le cartine.
+   * Con `'map'` vengono interrogati solo i provider che dichiarano
+   * `kinds: ['map']`.
+   */
+  kind?: SearchKind;
 }
 
 /**
@@ -104,7 +127,9 @@ export type SearchEvent =
       type: 'start';
       query: string;
       page: number;
-      /** Tutti i provider configurati, nell'ordine di configurazione. */
+      /** Tipo di ricerca richiesto. */
+      kind: SearchKind;
+      /** Tutti i provider configurati per questo tipo, nell'ordine di configurazione. */
       providers: Array<{ id: string; name: string }>;
       pending: string[];
       cached: boolean;
